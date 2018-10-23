@@ -2,14 +2,18 @@
 # @Date:   2018-10-22T18:34:28+05:30
 # @Email:  atulsahay01@gmail.com
 # @Last modified by:   atul
-# @Last modified time: 2018-10-22T18:51:10+05:30
+# @Last modified time: 2018-10-23T18:47:09+05:30
 
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
+import sys
+import os
+import math
 
 
 #Xor data
-XORdata=np.array([[0,0,0],[0,1,1],[1,0,1],[1,1,0]])
+XORdata=np.array([[0,0,0],[0,1,1],[1,0,2],[1,1,3]])
 X=XORdata[:,0:2]
 y=XORdata[:,-1]
 
@@ -25,7 +29,7 @@ def initialize_network():
 
     input_neurons=len(X[0])
     hidden_neurons=input_neurons+1
-    output_neurons=2
+    output_neurons=8
 
     n_hidden_layers=1
 
@@ -111,8 +115,10 @@ def training(net, epochs,lrate,n_outputs):
         for i,row in enumerate(X):
             outputs=forward_propagation(net,row)
 
-            expected=[0.0 for i in range(n_outputs)]
-            expected[y[i]]=1
+            # expected=[0.0 for i in range(n_outputs)]
+            # expected[y[i]]=1
+
+            expected = np.unpackbits(np.uint8(y[i]))
 
             sum_error+=sum([(expected[j]-outputs[j])**2 for j in range(len(expected))])
             back_propagation(net,row,expected)
@@ -137,8 +143,14 @@ def predict(network, row):
 
 
 
-pred=predict(net,np.array([1,1]))
-output=np.argmax(pred)
+pred=predict(net,np.array([0,1]))
+#output=np.argmax(pred)
+super_threshold_indices = pred >= 0.5
+pred[super_threshold_indices] = 1
+super_threshold_indices2 = pred < 0.5
+pred[super_threshold_indices2] = 0
+pred = pred.astype('int')
+output = np.packbits(pred)
 print(output)
 
 
