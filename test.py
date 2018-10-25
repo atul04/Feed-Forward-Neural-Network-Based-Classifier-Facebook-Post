@@ -2,7 +2,7 @@
 # @Date:   2018-10-22T18:34:28+05:30
 # @Email:  atulsahay01@gmail.com
 # @Last modified by:   atul
-# @Last modified time: 2018-10-25T15:42:41+05:30
+# @Last modified time: 2018-10-25T16:49:19+05:30
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -101,16 +101,38 @@ def forward_propagation(net,input):
     row=input
     for layer in net:
         prev_input=np.array([])
-        for neuron in layer:
-            # print(neuron['weights'])
-            # print(row)
-            sum=neuron['weights'].T.dot(row)
+        # print(layer)
+        neuron = []
+        for n in layer:
+            neuron.append(n['weights'])
+        # print("here is the neuron")
+        neuron = np.array(neuron)
+        # print(neuron.shape)
 
-            result=activate_sigmoid(sum)
-            neuron['result']=result
+        # print("\nAnd here is the transpose")
+        # neuronT = neuron.T
+        # print(neuronT.shape)
 
-            prev_input=np.append(prev_input,[result])
-        row =prev_input
+        sum = neuron.dot(row)
+        # print(sum)
+        result = activate_sigmoid(sum)
+        # print(result)
+
+        for index,neuron in enumerate(layer):
+            neuron['result'] = result[index]
+        # print(layer)
+
+        row = result
+        # for neuron in layer:
+        #     # print(neuron['weights'])
+        #     # print(row)
+        #     sum=neuron['weights'].T.dot(row)
+        #
+        #     result=activate_sigmoid(sum)
+        #     neuron['result']=result
+        #
+        #     prev_input=np.append(prev_input,[result])
+        # row =prev_input
 
     return row
 
@@ -157,8 +179,9 @@ def training(X,net, epochs,lrate,y):
     for epoch in range(epochs):
         sum_error=0
         for i,row in enumerate(X):
+            # print(i)
             outputs=forward_propagation(net,row)
-
+            print(outputs)
             # expected=[0.0 for i in range(n_outputs)]
             # expected[y[i]]=1
 
@@ -167,9 +190,9 @@ def training(X,net, epochs,lrate,y):
             sum_error+=sum([(expected[j]-outputs[j])**2 for j in range(len(expected))])
             back_propagation(net,row,expected)
             updateWeights(net,row,0.05)
-        if epoch%10000 ==0:
-            print('>epoch=%d,error=%.3f'%(epoch,sum_error))
-            errors.append(sum_error)
+        # if epoch%10 ==0:
+        print('>epoch=%d,error=%f'%(epoch,sum_error))
+        errors.append(sum_error)
     return errors
 
 # errors=training(net,100000, 0.05,2,y)
@@ -235,7 +258,7 @@ def main():
     x_train = to_normalize(x_train)
 
     # To take validation set out in proportion of 20-80 #############################
-    indexes = int(0.80*x_train.shape[0])
+    indexes = int(0.50*x_train.shape[0])
     x_train, x_valid = x_train.iloc[:indexes], x_train.iloc[indexes:]
     y_train, y_valid = y_train.iloc[:indexes], y_train.iloc[indexes:]
 
@@ -265,10 +288,10 @@ def main():
     print_network(net)
 
     ############ Training of the network ###################3
-    errors=training(x_train.values,net,100000, 0.05,y_train.values)
+    errors=training(x_train.values,net,10, 0.05,y_train.values)
 
     epochs=[0,1,2,3,4,5,6,7,8,9]
-    plt.plot(epochs,errors)
+    plt.plot(range(errors),errors)
     plt.xlabel("epochs in 10000's")
     plt.ylabel('error')
     plt.show()
