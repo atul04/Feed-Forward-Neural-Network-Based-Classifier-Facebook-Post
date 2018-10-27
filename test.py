@@ -2,7 +2,7 @@
 # @Date:   2018-10-22T18:34:28+05:30
 # @Email:  atulsahay01@gmail.com
 # @Last modified by:   atul
-# @Last modified time: 2018-10-27T09:20:14+05:30
+# @Last modified time: 2018-10-27T16:44:19+05:30
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,6 +11,21 @@ import sys
 import os
 import math
 
+
+HIDDEN_LAYERS = 2
+HIDDEN_UNITS = 100
+OUTPUT_UNITS = 3
+BATCH_SIZE = 200
+################ For One Hot encoding of the values ##########################
+
+def one_hot_encode(num,size=OUTPUT_UNITS):
+    arr = np.zeros(size)
+    np.put(arr, num-1, 1)
+    return arr
+
+def one_hot_decode(arr):
+    return np.where(arr==1)[0][0]+1
+############### End One Hot encoding ########################################
 
 
 def to_map(data_set):
@@ -205,14 +220,15 @@ def training(X,net, epochs,lrate,y,batch_size):
             # expected=[0.0 for i in range(n_outputs)]
             # expected[y[i]]=1
 
-            expected = np.unpackbits(np.uint8(y_mini[i]))
+            # expected = np.unpackbits(np.uint8(y_mini[i]))
+            expected = one_hot_encode(y_mini[i])
 
             # sum_error_back += (expected-outputs)
             sum_error += np.sum((expected-outputs)**2)
             # print(sum_error)
             # if(i%100==0):
             back_propagation(net,row,expected)
-            updateWeights(net,row,0.05)
+            updateWeights(net,row,lrate)
 
         # print("sum_error_back",sum_error_back)
         # sum_error_back/=100
@@ -317,10 +333,10 @@ def main():
 
     #### Initialization of network ############################
 
-    net = initialize_network(x_train,8,100,2)
+    net = initialize_network(x_train,OUTPUT_UNITS,HIDDEN_UNITS,HIDDEN_LAYERS)
     print_network(net)
     ############ Training of the network ###################3
-    errors=training(x_train.values,net,500, 0.1,y_train.values,100)
+    errors=training(x_train.values,net,500, 0.01,y_train.values,BATCH_SIZE)
     print_network(net)
     epochs=[ i for i in range(len(errors)) ]
     plt.plot(epochs,errors)
@@ -330,25 +346,33 @@ def main():
 
     ########### Prediction ###################################
     f = open('result.txt','a')
-    f.write('\n\nResult:\n\n')
+    f.write('\n\nResult: {} {} Training Loss: {}\n\n'.format(HIDDEN_LAYERS,HIDDEN_UNITS,errors[-1]))
+    square_loss =0
     for i in range(len(x_valid.values)):
             # print(x_valid.values[i])
             # print(y_valid.values[i])
             pred=predict(net,x_valid.values[i])
             # print(pred)
             #output=np.argmax(pred)
-            super_threshold_indices = pred >= 0.5
-            pred[super_threshold_indices] = 1
-            super_threshold_indices2 = pred < 0.5
-            pred[super_threshold_indices2] = 0
-            pred = pred.astype('int')
-            output = np.packbits(pred)
+            # super_threshold_indices = pred >= 0.5
+            # pred[super_threshold_indices] = 1
+            # super_threshold_indices2 = pred < 0.5
+            # pred[super_threshold_indices2] = 0
+            pred = one_hot_encode(np.argmax(pred)+1)
+            # output = np.packbits(pred)[0]
+            print(pred)
+            output = one_hot_decode(pred)
+            square_loss+=(output-y_valid.values[i])**2
             print("expected : {} actual : {}".format(y_valid.values[i],output))
             f.write("expected : {} actual : {}\n".format(y_valid.values[i],output))
-
+    print(square_loss,len(x_valid.values))
+    square_loss = square_loss*1.0 / float(len(x_valid.values))
+    print("Square_loss {} ".format(square_loss))
+    f.write("\n\nSquare_loss {} \n\n".format(square_loss))
     f.close()
 
     f = open('net.txt','a')
+    f.write('\n\nNew Net\n\n')
     print_file(f,net)
     f.close()
 
