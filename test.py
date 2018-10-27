@@ -2,7 +2,7 @@
 # @Date:   2018-10-22T18:34:28+05:30
 # @Email:  atulsahay01@gmail.com
 # @Last modified by:   atul
-# @Last modified time: 2018-10-25T16:49:19+05:30
+# @Last modified time: 2018-10-27T09:20:14+05:30
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -65,26 +65,30 @@ def print_network(net):
         for j,neuron in enumerate(layer,1):
             print("neuron {} :".format(j),neuron)
 
+def print_file(f,net):
+    for i,layer in enumerate(net,1):
+        f.write("Layer {} \n".format(i))
+        for j,neuron in enumerate(layer,1):
+            f.write("neuron {} : {}\n".format(j,neuron))
 
-
-def initialize_network(X,n_o_neurons,hidden_units):
+def initialize_network(X,n_o_neurons,hidden_units,n_h_layers):
     print(X.ix[0])
     input_neurons=len(X.ix[0])
     hidden_neurons=hidden_units
     output_neurons=n_o_neurons
 
-    n_hidden_layers=1
+    n_hidden_layers=n_h_layers
 
     net=list()
 
     for h in range(n_hidden_layers):
         if h!=0:
             input_neurons=len(net[-1])
-
-        hidden_layer = [ { 'weights': np.random.uniform(size=input_neurons)} for i in range(hidden_neurons) ]
+                                                        #'''size=input_neurons'''
+        hidden_layer = [ { 'weights': np.random.uniform(-1,1,size=input_neurons)} for i in range(hidden_neurons) ]
         net.append(hidden_layer)
-
-    output_layer = [ { 'weights': np.random.uniform(size=hidden_neurons)} for i in range(output_neurons)]
+                                                        #'''size=hidden_neurons'''
+    output_layer = [ { 'weights': np.random.uniform(-1,1,size=hidden_neurons)} for i in range(output_neurons)]
     net.append(output_layer)
 
     return net
@@ -160,11 +164,13 @@ def back_propagation(net,row,expected):
 
             for j in range(len(layer)):
                 neuron=layer[j]
+                # print("errors[j]",errors[j])
+                # print("result",neuron['result'])
                 neuron['delta']=errors[j]*sigmoidDerivative(neuron['result'])
-
+                # print(neuron['delta'])
 
 def updateWeights(net,input,lrate):
-
+    # print_network(net)
     for i in range(len(net)):
         inputs = input
         if i!=0:
@@ -174,25 +180,52 @@ def updateWeights(net,input,lrate):
             for j in range(len(inputs)):
                 neuron['weights'][j]+=lrate*neuron['delta']*inputs[j]
 
-def training(X,net, epochs,lrate,y):
+def get_mini_batch(batch_size,X,y):
+    indices = list(np.random.randint(0,len(X),batch_size))
+    x_mini = []
+    y_mini = np.array([])
+    for i in indices:
+        x_mini.append(X[i])
+        y_mini = np.append(y_mini,y[i])
+    x_mini = np.array(x_mini)
+    print(x_mini)
+    print(y_mini)
+
+    return x_mini,y_mini
+
+def training(X,net, epochs,lrate,y,batch_size):
     errors=[]
     for epoch in range(epochs):
         sum_error=0
-        for i,row in enumerate(X):
+        x_mini,y_mini = get_mini_batch(batch_size,X,y)
+        for i,row in enumerate(x_mini):
             # print(i)
             outputs=forward_propagation(net,row)
-            print(outputs)
+            # print(outputs)
             # expected=[0.0 for i in range(n_outputs)]
             # expected[y[i]]=1
 
-            expected = np.unpackbits(np.uint8(y[i]))
+            expected = np.unpackbits(np.uint8(y_mini[i]))
 
-            sum_error+=sum([(expected[j]-outputs[j])**2 for j in range(len(expected))])
+            # sum_error_back += (expected-outputs)
+            sum_error += np.sum((expected-outputs)**2)
+            # print(sum_error)
+            # if(i%100==0):
             back_propagation(net,row,expected)
             updateWeights(net,row,0.05)
+
+        # print("sum_error_back",sum_error_back)
+        # sum_error_back/=100
         # if epoch%10 ==0:
+            if(i%99==0):
+                print("expected=",expected)
+                print("output=",outputs)
+                print("Sum_error=",sum_error)
+
+
         print('>epoch=%d,error=%f'%(epoch,sum_error))
         errors.append(sum_error)
+        # sum_error_back = 0
     return errors
 
 # errors=training(net,100000, 0.05,2,y)
@@ -205,7 +238,7 @@ def training(X,net, epochs,lrate,y):
 
 # Make a prediction with a network
 def predict(network, row):
-    outputs = forward_propagation(net, row)
+    outputs = forward_propagation(network, row)
     return outputs
 
 
@@ -258,7 +291,7 @@ def main():
     x_train = to_normalize(x_train)
 
     # To take validation set out in proportion of 20-80 #############################
-    indexes = int(0.50*x_train.shape[0])
+    indexes = int(0.70*x_train.shape[0])
     x_train, x_valid = x_train.iloc[:indexes], x_train.iloc[indexes:]
     y_train, y_valid = y_train.iloc[:indexes], y_train.iloc[indexes:]
 
@@ -284,31 +317,42 @@ def main():
 
     #### Initialization of network ############################
 
-    net = initialize_network(x_train,8,100)
+    net = initialize_network(x_train,8,100,2)
     print_network(net)
-
     ############ Training of the network ###################3
-    errors=training(x_train.values,net,10, 0.05,y_train.values)
-
-    epochs=[0,1,2,3,4,5,6,7,8,9]
-    plt.plot(range(errors),errors)
-    plt.xlabel("epochs in 10000's")
+    errors=training(x_train.values,net,500, 0.1,y_train.values,100)
+    print_network(net)
+    epochs=[ i for i in range(len(errors)) ]
+    plt.plot(epochs,errors)
+    plt.xlabel("epochs in 1's")
     plt.ylabel('error')
     plt.show()
 
     ########### Prediction ###################################
+    f = open('result.txt','a')
+    f.write('\n\nResult:\n\n')
+    for i in range(len(x_valid.values)):
+            # print(x_valid.values[i])
+            # print(y_valid.values[i])
+            pred=predict(net,x_valid.values[i])
+            # print(pred)
+            #output=np.argmax(pred)
+            super_threshold_indices = pred >= 0.5
+            pred[super_threshold_indices] = 1
+            super_threshold_indices2 = pred < 0.5
+            pred[super_threshold_indices2] = 0
+            pred = pred.astype('int')
+            output = np.packbits(pred)
+            print("expected : {} actual : {}".format(y_valid.values[i],output))
+            f.write("expected : {} actual : {}\n".format(y_valid.values[i],output))
 
-    pred=predict(net,x_valid.ix[3])
-    #output=np.argmax(pred)
-    super_threshold_indices = pred >= 0.5
-    pred[super_threshold_indices] = 1
-    super_threshold_indices2 = pred < 0.5
-    pred[super_threshold_indices2] = 0
-    pred = pred.astype('int')
-    output = np.packbits(pred)
-    print("expected : {} actual : {}".format(y_valid.ix[3],output))
+    f.close()
 
-    print_network(net)
+    f = open('net.txt','a')
+    print_file(f,net)
+    f.close()
+
+    # print_network(net)
 
 
 
