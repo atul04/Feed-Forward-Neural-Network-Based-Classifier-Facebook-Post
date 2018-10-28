@@ -2,7 +2,7 @@
 # @Date:   2018-10-22T18:34:28+05:30
 # @Email:  atulsahay01@gmail.com
 # @Last modified by:   atul
-# @Last modified time: 2018-10-27T16:44:19+05:30
+# @Last modified time: 2018-10-28T13:25:22+05:30
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,10 +12,12 @@ import os
 import math
 
 
-HIDDEN_LAYERS = 2
+HIDDEN_LAYERS = 1
 HIDDEN_UNITS = 100
 OUTPUT_UNITS = 3
-BATCH_SIZE = 200
+BATCH_SIZE = 100
+LEARNING_RATE = 0.001
+EPOCHS = 1000
 ################ For One Hot encoding of the values ##########################
 
 def one_hot_encode(num,size=OUTPUT_UNITS):
@@ -168,7 +170,15 @@ def back_propagation(net,row,expected):
             errors=np.array([])
             if i==len(net)-1:
                 results=[neuron['result'] for neuron in layer]
-                errors = expected-np.array(results)
+                # for mse###errors = expected-np.array(results)
+                errors = np.array(results) - expected
+                for j in range(len(layer)):
+                    neuron=layer[j]
+                    # print("errors[j]",errors[j])
+                    # print("result",neuron['result'])
+                    #for mse### neuron['delta']=errors[j]*sigmoidDerivative(neuron['result'])
+                    neuron['delta']=errors[j]
+                    # print(neuron['delta'])
             else:
                 for j in range(len(layer)):
                     herror=0
@@ -176,13 +186,14 @@ def back_propagation(net,row,expected):
                     for neuron in nextlayer:
                         herror+=(neuron['weights'][j]*neuron['delta'])
                     errors=np.append(errors,[herror])
+                for j in range(len(layer)):
+                    neuron=layer[j]
+                    # print("errors[j]",errors[j])
+                    # print("result",neuron['result'])
+                    #for mse### neuron['delta']=errors[j]*sigmoidDerivative(neuron['result'])
+                    neuron['delta']=errors[j]*sigmoidDerivative(neuron['result'])
+                    # print(neuron['delta'])
 
-            for j in range(len(layer)):
-                neuron=layer[j]
-                # print("errors[j]",errors[j])
-                # print("result",neuron['result'])
-                neuron['delta']=errors[j]*sigmoidDerivative(neuron['result'])
-                # print(neuron['delta'])
 
 def updateWeights(net,input,lrate):
     # print_network(net)
@@ -193,20 +204,30 @@ def updateWeights(net,input,lrate):
 
         for neuron in net[i]:
             for j in range(len(inputs)):
-                neuron['weights'][j]+=lrate*neuron['delta']*inputs[j]
+                neuron['weights'][j]-=lrate*neuron['delta']*inputs[j]
 
 def get_mini_batch(batch_size,X,y):
     indices = list(np.random.randint(0,len(X),batch_size))
-    x_mini = []
+    # x_mini = []
+    # y_mini = np.array([])
+    # for i in indices:
+    #     x_mini.append(X[i])
+    #     y_mini = np.append(y_mini,y[i])
+    # x_mini = np.array(x_mini)
+    # print(x_mini)
+    # print(y_mini)
+    x_mini = np.array([])
     y_mini = np.array([])
-    for i in indices:
-        x_mini.append(X[i])
-        y_mini = np.append(y_mini,y[i])
-    x_mini = np.array(x_mini)
-    print(x_mini)
-    print(y_mini)
-
+    x_mini = X[indices]
+    y_mini = y[indices]
+    # print(x_mini)
+    # print(y_mini)
+    # exit()
     return x_mini,y_mini
+
+def cross_entropy(expected,output):
+    result = -(expected*np.log(output)+(1-expected)*np.log(1-output))
+    return result
 
 def training(X,net, epochs,lrate,y,batch_size):
     errors=[]
@@ -224,7 +245,7 @@ def training(X,net, epochs,lrate,y,batch_size):
             expected = one_hot_encode(y_mini[i])
 
             # sum_error_back += (expected-outputs)
-            sum_error += np.sum((expected-outputs)**2)
+            sum_error += np.sum(cross_entropy(expected,outputs))/OUTPUT_UNITS
             # print(sum_error)
             # if(i%100==0):
             back_propagation(net,row,expected)
@@ -233,16 +254,17 @@ def training(X,net, epochs,lrate,y,batch_size):
         # print("sum_error_back",sum_error_back)
         # sum_error_back/=100
         # if epoch%10 ==0:
-            if(i%99==0):
+            if(i%(BATCH_SIZE-1)==0):
                 print("expected=",expected)
                 print("output=",outputs)
-                print("Sum_error=",sum_error)
+                print("Sum_error=",sum_error/BATCH_SIZE)
 
-
+        sum_error/=BATCH_SIZE
         print('>epoch=%d,error=%f'%(epoch,sum_error))
         errors.append(sum_error)
+    mean_cross = np.mean(errors)
         # sum_error_back = 0
-    return errors
+    return errors,mean_cross
 
 # errors=training(net,100000, 0.05,2,y)
 #
@@ -272,7 +294,27 @@ def predict(network, row):
 #
 # print_network(net)
 
-
+def generate_output(x_test, net):
+# 	# writes a file (output.csv) containing target variables in required format for Kaggle Submission.
+    print("Generating the output file:--")
+    df = pd.DataFrame(columns=['predicted_class'])
+    # y_P_list = []
+    # idList = [ i for i in range(int(len(phi_test)))]
+    for i in range(int(len(x_test))):
+        # print(phi_test[i])
+        y_pred=predict(net,x_test[i])
+        # print(pred)
+        #output=np.argmax(pred)
+        # super_threshold_indices = pred >= 0.5
+        # pred[super_threshold_indices] = 1
+        # super_threshold_indices2 = pred < 0.5
+        # pred[super_threshold_indices2] = 0
+        # print(target)
+        # print(pred)
+        y_pred = np.argmax(y_pred)+1
+        df.loc[i+1] = np.array([y_pred])
+    df.to_csv('output.csv')
+print("Done")
 
 
 
@@ -307,7 +349,7 @@ def main():
     x_train = to_normalize(x_train)
 
     # To take validation set out in proportion of 20-80 #############################
-    indexes = int(0.70*x_train.shape[0])
+    indexes = int(0.80*x_train.shape[0])
     x_train, x_valid = x_train.iloc[:indexes], x_train.iloc[indexes:]
     y_train, y_valid = y_train.iloc[:indexes], y_train.iloc[indexes:]
 
@@ -336,18 +378,18 @@ def main():
     net = initialize_network(x_train,OUTPUT_UNITS,HIDDEN_UNITS,HIDDEN_LAYERS)
     print_network(net)
     ############ Training of the network ###################3
-    errors=training(x_train.values,net,500, 0.01,y_train.values,BATCH_SIZE)
+    errors,mean_cross=training(x_train.values,net,EPOCHS, LEARNING_RATE,y_train.values,BATCH_SIZE)
     print_network(net)
     epochs=[ i for i in range(len(errors)) ]
     plt.plot(epochs,errors)
-    plt.xlabel("epochs in 1's")
+    plt.xlabel("epochs in "+str(BATCH_SIZE)+"'s ")
     plt.ylabel('error')
     plt.show()
 
     ########### Prediction ###################################
-    f = open('result.txt','a')
-    f.write('\n\nResult: {} {} Training Loss: {}\n\n'.format(HIDDEN_LAYERS,HIDDEN_UNITS,errors[-1]))
-    square_loss =0
+    f = open('result_cross.txt','a')
+    f.write('\n\nResult: Hidden layers {} H_units {} Lrate {} Epochs {} Batch Size {} Training Loss: {}\n\n'.format(HIDDEN_LAYERS,HIDDEN_UNITS,LEARNING_RATE,EPOCHS,BATCH_SIZE,mean_cross))
+    cross_entropy_loss =0
     for i in range(len(x_valid.values)):
             # print(x_valid.values[i])
             # print(y_valid.values[i])
@@ -358,24 +400,35 @@ def main():
             # pred[super_threshold_indices] = 1
             # super_threshold_indices2 = pred < 0.5
             # pred[super_threshold_indices2] = 0
+            target=one_hot_encode(y_valid.values[i])
+            # print(target)
+            # print(pred)
+            cross_entropy_loss+=np.mean(cross_entropy(target,pred))
+            # print(cross_entropy_loss)
             pred = one_hot_encode(np.argmax(pred)+1)
             # output = np.packbits(pred)[0]
-            print(pred)
-            output = one_hot_decode(pred)
-            square_loss+=(output-y_valid.values[i])**2
-            print("expected : {} actual : {}".format(y_valid.values[i],output))
-            f.write("expected : {} actual : {}\n".format(y_valid.values[i],output))
-    print(square_loss,len(x_valid.values))
-    square_loss = square_loss*1.0 / float(len(x_valid.values))
-    print("Square_loss {} ".format(square_loss))
-    f.write("\n\nSquare_loss {} \n\n".format(square_loss))
+            #output = one_hot_decode(pred)
+            output=pred
+
+            #square_loss+=(output-y_valid.values[i])**2
+            print(output)
+            print(target)
+
+            # cross_entropy_loss+=np.mean(cross_entropy(target,output))
+            print("expected : {} actual : {}".format(y_valid.values[i],one_hot_decode(output)))
+            f.write("expected : {} actual : {}\n".format(y_valid.values[i],one_hot_decode(output)))
+    print(cross_entropy_loss,len(x_valid.values))
+    cross_entropy_loss = cross_entropy_loss*1.0 / float(len(x_valid.values))
+    print("cross_entropy_loss {} ".format(cross_entropy_loss))
+    # exit()
+    f.write("\n\ncross_entropy_loss {} \n\n".format(cross_entropy_loss))
     f.close()
 
-    f = open('net.txt','a')
+    f = open('net_cross.txt','a')
     f.write('\n\nNew Net\n\n')
     print_file(f,net)
     f.close()
-
+    generate_output(x_test.values,net)
     # print_network(net)
 
 
