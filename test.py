@@ -2,7 +2,7 @@
 # @Date:   2018-10-22T18:34:28+05:30
 # @Email:  atulsahay01@gmail.com
 # @Last modified by:   atul
-# @Last modified time: 2018-10-28T13:25:22+05:30
+# @Last modified time: 2018-10-29T01:42:08+05:30
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,12 +12,12 @@ import os
 import math
 
 
-HIDDEN_LAYERS = 1
+HIDDEN_LAYERS = 3
 HIDDEN_UNITS = 100
 OUTPUT_UNITS = 3
 BATCH_SIZE = 100
 LEARNING_RATE = 0.001
-EPOCHS = 1000
+EPOCHS = 500
 ################ For One Hot encoding of the values ##########################
 
 def one_hot_encode(num,size=OUTPUT_UNITS):
@@ -53,9 +53,13 @@ def to_normalize(data_set):
 
 # Split in x and y
 def split(data):
+    data = data.sample(frac=1).reset_index(drop=True)
     x_train = data.iloc[:,:-1]
     y_train = data.iloc[:,-1]
 
+    # print(x_train)
+    # print(y_train)
+    # exit()
     return x_train, y_train
 
 # Provide features set and target set
@@ -128,6 +132,8 @@ def forward_propagation(net,input):
             neuron.append(n['weights'])
         # print("here is the neuron")
         neuron = np.array(neuron)
+        # neuron = np.squeeze(neuron)
+        # print(neuron.shape)
         # print(neuron.shape)
 
         # print("\nAnd here is the transpose")
@@ -180,18 +186,37 @@ def back_propagation(net,row,expected):
                     neuron['delta']=errors[j]
                     # print(neuron['delta'])
             else:
-                for j in range(len(layer)):
-                    herror=0
-                    nextlayer=net[i+1]
-                    for neuron in nextlayer:
-                        herror+=(neuron['weights'][j]*neuron['delta'])
-                    errors=np.append(errors,[herror])
+                # for j in range(len(layer)):
+                #     herror=0
+                #     nextlayer=net[i+1]
+                #     for neuron in nextlayer:
+                #         herror+=(neuron['weights'][j]*neuron['delta'])
+                #     errors=np.append(errors,[herror])
+                nextlayer = net[i+1]
+                delta = np.array([])
+                errors = []
+                for neuron in nextlayer:
+                    # print(neuron['weights'])
+                    errors.append(neuron['weights'])
+                    delta = np.append(delta,neuron['delta'])
+                errors = np.array(errors)
+                # errors = np.squeeze(errors)
+                # print(errors.shape,delta.shape)
+                errors = np.dot(errors.T,delta)
+                # print(errors.shape)
+                # exit()
+                results=[neuron['result'] for neuron in layer]
+                results = np.array(results)
+                # print(errors.shape,results.shape)
+                final_error = errors*results
+                # print(final_error.shape)
+                # exit()
                 for j in range(len(layer)):
                     neuron=layer[j]
                     # print("errors[j]",errors[j])
                     # print("result",neuron['result'])
                     #for mse### neuron['delta']=errors[j]*sigmoidDerivative(neuron['result'])
-                    neuron['delta']=errors[j]*sigmoidDerivative(neuron['result'])
+                    neuron['delta']=final_error[j]
                     # print(neuron['delta'])
 
 
@@ -201,10 +226,23 @@ def updateWeights(net,input,lrate):
         inputs = input
         if i!=0:
             inputs=[neuron['result'] for neuron in net[i-1]]
-
-        for neuron in net[i]:
-            for j in range(len(inputs)):
-                neuron['weights'][j]-=lrate*neuron['delta']*inputs[j]
+        inputs = np.asmatrix(inputs).T
+        delta = [neuron['delta'] for neuron in net[i]]
+        delta = np.asmatrix(delta).T
+        # print(delta.shape,inputs.shape,inputs.T.shape)
+        error_loss = lrate*np.dot(delta,inputs.T)
+        # print(error_loss.shape)
+        weights = [neuron['weights'] for neuron in net[i]]
+        weights = np.asmatrix(weights)
+        # print(weights.shape)
+        weights = weights - error_loss
+        # print(weights.shape)
+        # exit()
+        for index,neuron in enumerate(net[i]):
+            # print(np)
+            # print(weights[index].shape)
+            c = np.ravel(weights[index])
+            neuron['weights']=c
 
 def get_mini_batch(batch_size,X,y):
     indices = list(np.random.randint(0,len(X),batch_size))
@@ -313,8 +351,9 @@ def generate_output(x_test, net):
         # print(pred)
         y_pred = np.argmax(y_pred)+1
         df.loc[i+1] = np.array([y_pred])
-    df.to_csv('output.csv')
-print("Done")
+    txt = 'output_H_'+str(HIDDEN_LAYERS)+'_L_'+str(LEARNING_RATE)+'_U_'+str(HIDDEN_UNITS)+'.txt'
+    df.to_csv(txt)
+    print("Done")
 
 
 
@@ -387,7 +426,8 @@ def main():
     plt.show()
 
     ########### Prediction ###################################
-    f = open('result_cross.txt','a')
+    txt = 'result_cross_H_'+str(HIDDEN_LAYERS)+'_L_'+str(LEARNING_RATE)+'_U_'+str(HIDDEN_UNITS)+'.txt'
+    f = open(txt,'a')
     f.write('\n\nResult: Hidden layers {} H_units {} Lrate {} Epochs {} Batch Size {} Training Loss: {}\n\n'.format(HIDDEN_LAYERS,HIDDEN_UNITS,LEARNING_RATE,EPOCHS,BATCH_SIZE,mean_cross))
     cross_entropy_loss =0
     for i in range(len(x_valid.values)):
@@ -420,14 +460,14 @@ def main():
     print(cross_entropy_loss,len(x_valid.values))
     cross_entropy_loss = cross_entropy_loss*1.0 / float(len(x_valid.values))
     print("cross_entropy_loss {} ".format(cross_entropy_loss))
-    # exit()
     f.write("\n\ncross_entropy_loss {} \n\n".format(cross_entropy_loss))
     f.close()
-
     f = open('net_cross.txt','a')
     f.write('\n\nNew Net\n\n')
     print_file(f,net)
     f.close()
+
+    # Output Generation is done
     generate_output(x_test.values,net)
     # print_network(net)
 
