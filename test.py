@@ -2,7 +2,7 @@
 # @Date:   2018-10-22T18:34:28+05:30
 # @Email:  atulsahay01@gmail.com
 # @Last modified by:   atul
-# @Last modified time: 2018-10-29T18:21:47+05:30
+# @Last modified time: 2018-10-29T20:58:05+05:30
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -13,11 +13,14 @@ import math
 
 
 HIDDEN_LAYERS = 1
-HIDDEN_UNITS = 100
+HIDDEN_UNITS = 50
 OUTPUT_UNITS = 3
 BATCH_SIZE = 100
+LAMBDA = 100
 LEARNING_RATE = 0.001
 EPOCHS = 1000
+
+n_weights_count = 0
 ################ For One Hot encoding of the values ##########################
 
 def one_hot_encode(num,size=OUTPUT_UNITS):
@@ -93,6 +96,7 @@ def print_file(f,net):
             f.write("neuron {} : {}\n".format(j,neuron))
 
 def initialize_network(X,n_o_neurons,hidden_units,n_h_layers):
+    global n_weights_count
     print(X.ix[0])
     input_neurons=len(X.ix[0])
     hidden_neurons=hidden_units
@@ -101,13 +105,16 @@ def initialize_network(X,n_o_neurons,hidden_units,n_h_layers):
     n_hidden_layers=n_h_layers
 
     net=list()
+    n_weights_count=0
 
     for h in range(n_hidden_layers):
         if h!=0:
             input_neurons=len(net[-1])
-                                                        #'''size=input_neurons'''
+        n_weights_count+=(input_neurons)*hidden_neurons
+                                                    #'''size=input_neurons'''
         hidden_layer = [ { 'weights': np.random.uniform(-1,1,size=input_neurons)} for i in range(hidden_neurons) ]
         net.append(hidden_layer)
+    n_weights_count+=(hidden_neurons)*output_neurons
                                                         #'''size=hidden_neurons'''
     output_layer = [ { 'weights': np.random.uniform(-1,1,size=hidden_neurons)} for i in range(output_neurons)]
     net.append(output_layer)
@@ -220,8 +227,12 @@ def back_propagation(net,row,expected):
                     # print(neuron['delta'])
 
 
-def updateWeights(net,input,lrate):
+def updateWeights(net,input,lrate,lam):
     # print_network(net)
+    global n_weights_count
+    # print(n_weights_count)
+    reg = (1-lrate*lam/n_weights_count)
+    # print("reg ",reg)
     for i in range(len(net)):
         inputs = input
         if i!=0:
@@ -233,6 +244,10 @@ def updateWeights(net,input,lrate):
         error_loss = lrate*np.dot(delta,inputs.T)
         # print(error_loss.shape)
         weights = [neuron['weights'] for neuron in net[i]]
+        weights = np.array(weights)
+        # print("weights :",weights)
+        weights = weights*reg
+        # print("weights :",weights)
         weights = np.asmatrix(weights)
         # print(weights.shape)
         weights = weights - error_loss
@@ -267,7 +282,22 @@ def cross_entropy(expected,output):
     result = -(expected*np.log(output)+(1-expected)*np.log(1-output))
     return result
 
-def training(X,net, epochs,lrate,y,batch_size):
+def regularization(net,lam):
+    neuron_weights_mean = []
+    for i in range(len(net)):
+        layer = net[i]
+        for neuron in layer:
+            c = neuron['weights']
+            c = np.mean(c**2)
+            neuron_weights_mean.append(c)
+    neuron_weights_mean = np.array(neuron_weights_mean)
+    neuron_weights_mean = np.mean(neuron_weights_mean)
+
+    reg = lam*neuron_weights_mean
+
+    return reg
+
+def training(X,net, epochs,lrate,y,batch_size,lam):
     errors=[]
     for epoch in range(epochs):
         sum_error=0
@@ -287,7 +317,7 @@ def training(X,net, epochs,lrate,y,batch_size):
             # print(sum_error)
             # if(i%100==0):
             back_propagation(net,row,expected)
-            updateWeights(net,row,lrate)
+            updateWeights(net,row,lrate,lam)
 
         # print("sum_error_back",sum_error_back)
         # sum_error_back/=100
@@ -351,19 +381,24 @@ def generate_output(x_test, net):
         # print(pred)
         y_pred = np.argmax(y_pred)+1
         df.loc[i+1] = np.array([y_pred])
-    txt = 'output_H_'+str(HIDDEN_LAYERS)+'_L_'+str(LEARNING_RATE)+'_U_'+str(HIDDEN_UNITS)+'.txt'
+    txt = 'output_H_'+str(HIDDEN_LAYERS)+'_L_'+str(LEARNING_RATE)+'_U_'+str(HIDDEN_UNITS)+'_lam_'+str(LAMBDA)+'.txt'
     df.to_csv(txt)
     print("Done")
 
 
-def total_loss(net,x,y):
+def total_loss(net,x,y,lam):
+    global n_weights_count
+    reg = regularization(net,lam)
     sum_error=0
     for i,row in enumerate(x):
         outputs=forward_propagation(net,row)
         expected = one_hot_encode(y[i])
         sum_error += np.sum(cross_entropy(expected,outputs))/OUTPUT_UNITS
     sum_error/=len(x)
-    return sum_error
+    reg/=n_weights_count
+    # print("reg",reg)
+    t_error = sum_error + reg
+    return t_error
 
 def total_accuracy(net,x,y):
     count = 0
@@ -388,7 +423,7 @@ def main():
     	x_train, y_train = get_features();
     	task1();task2();task3();.....
     """
-    global train_mean, train_std
+    global train_mean, train_std, n_weights_count
     # pow = 1
     train_file = sys.argv[1]
     # train_file = '/home/atul/college/cs725/Assignment/train.csv'
@@ -436,8 +471,9 @@ def main():
 
     net = initialize_network(x_train,OUTPUT_UNITS,HIDDEN_UNITS,HIDDEN_LAYERS)
     # print_network(net)
+    print("#Weights :",n_weights_count)
     ############ Training of the network ###################3
-    errors,mean_cross=training(x_train.values,net,EPOCHS, LEARNING_RATE,y_train.values,BATCH_SIZE)
+    errors,mean_cross=training(x_train.values,net,EPOCHS, LEARNING_RATE,y_train.values,BATCH_SIZE,LAMBDA)
     print_network(net)
     epochs=[ i for i in range(len(errors)) ]
     plt.plot(epochs,errors)
@@ -446,15 +482,15 @@ def main():
     plt.show()
 
     print("Calculating: Loss and Accuracy")
-    train_loss,train_acc = total_loss(net,x_train.values,y_train.values),total_accuracy(net,x_train.values,y_train.values)
-    val_loss,val_acc = total_loss(net,x_valid.values,y_valid.values),total_accuracy(net,x_valid.values,y_valid.values)
+    train_loss,train_acc = total_loss(net,x_train.values,y_train.values,LAMBDA),total_accuracy(net,x_train.values,y_train.values)
+    val_loss,val_acc = total_loss(net,x_valid.values,y_valid.values,LAMBDA),total_accuracy(net,x_valid.values,y_valid.values)
     print("Train : Loss {} Acc {} ".format(train_loss,train_acc))
     print("Valid : Loss {} Acc {} ".format(val_loss,val_acc))
 
     ########### Prediction ###################################
-    txt = 'result_cross_H_'+str(HIDDEN_LAYERS)+'_L_'+str(LEARNING_RATE)+'_U_'+str(HIDDEN_UNITS)+'.txt'
+    txt = 'result_cross_H_'+str(HIDDEN_LAYERS)+'_L_'+str(LEARNING_RATE)+'_U_'+str(HIDDEN_UNITS)+'_lam_'+str(LAMBDA)+'.txt'
     f = open(txt,'a')
-    f.write('\n\nResult: Hidden layers {} H_units {} Lrate {} Epochs {} Batch Size {} Training Loss: {}\n\n'.format(HIDDEN_LAYERS,HIDDEN_UNITS,LEARNING_RATE,EPOCHS,BATCH_SIZE,mean_cross))
+    f.write('\n\nResult: Hidden layers {} H_units {} Lrate {} LAMBDA {} Epochs {} Batch Size {} Training Loss: {}\n\n'.format(HIDDEN_LAYERS,HIDDEN_UNITS,LEARNING_RATE,LAMBDA,EPOCHS,BATCH_SIZE,mean_cross))
     f.write('\nTrain : Loss {} Acc {} \n'.format(train_loss,train_acc))
     f.write('\nValid : Loss {} Acc {} \n\n'.format(val_loss,val_acc))
     cross_entropy_loss =0
