@@ -2,7 +2,7 @@
 # @Date:   2018-10-22T18:34:28+05:30
 # @Email:  atulsahay01@gmail.com
 # @Last modified by:   atul
-# @Last modified time: 2018-10-29T01:42:08+05:30
+# @Last modified time: 2018-10-29T18:21:47+05:30
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -12,12 +12,12 @@ import os
 import math
 
 
-HIDDEN_LAYERS = 3
+HIDDEN_LAYERS = 1
 HIDDEN_UNITS = 100
 OUTPUT_UNITS = 3
 BATCH_SIZE = 100
 LEARNING_RATE = 0.001
-EPOCHS = 500
+EPOCHS = 1000
 ################ For One Hot encoding of the values ##########################
 
 def one_hot_encode(num,size=OUTPUT_UNITS):
@@ -356,6 +356,26 @@ def generate_output(x_test, net):
     print("Done")
 
 
+def total_loss(net,x,y):
+    sum_error=0
+    for i,row in enumerate(x):
+        outputs=forward_propagation(net,row)
+        expected = one_hot_encode(y[i])
+        sum_error += np.sum(cross_entropy(expected,outputs))/OUTPUT_UNITS
+    sum_error/=len(x)
+    return sum_error
+
+def total_accuracy(net,x,y):
+    count = 0
+    for i,row in enumerate(x):
+        outputs=forward_propagation(net,row)
+        pred = np.argmax(outputs)+1
+        if(pred==y[i]):
+            count +=1
+    count/=len(x)
+    return count
+
+
 
 
 
@@ -388,7 +408,7 @@ def main():
     x_train = to_normalize(x_train)
 
     # To take validation set out in proportion of 20-80 #############################
-    indexes = int(0.80*x_train.shape[0])
+    indexes = int(0.70*x_train.shape[0])
     x_train, x_valid = x_train.iloc[:indexes], x_train.iloc[indexes:]
     y_train, y_valid = y_train.iloc[:indexes], y_train.iloc[indexes:]
 
@@ -415,31 +435,40 @@ def main():
     #### Initialization of network ############################
 
     net = initialize_network(x_train,OUTPUT_UNITS,HIDDEN_UNITS,HIDDEN_LAYERS)
-    print_network(net)
+    # print_network(net)
     ############ Training of the network ###################3
     errors,mean_cross=training(x_train.values,net,EPOCHS, LEARNING_RATE,y_train.values,BATCH_SIZE)
     print_network(net)
     epochs=[ i for i in range(len(errors)) ]
     plt.plot(epochs,errors)
-    plt.xlabel("epochs in "+str(BATCH_SIZE)+"'s ")
+    plt.xlabel("Epochs [Batches("+str(BATCH_SIZE)+"'s)] ")
     plt.ylabel('error')
     plt.show()
+
+    print("Calculating: Loss and Accuracy")
+    train_loss,train_acc = total_loss(net,x_train.values,y_train.values),total_accuracy(net,x_train.values,y_train.values)
+    val_loss,val_acc = total_loss(net,x_valid.values,y_valid.values),total_accuracy(net,x_valid.values,y_valid.values)
+    print("Train : Loss {} Acc {} ".format(train_loss,train_acc))
+    print("Valid : Loss {} Acc {} ".format(val_loss,val_acc))
 
     ########### Prediction ###################################
     txt = 'result_cross_H_'+str(HIDDEN_LAYERS)+'_L_'+str(LEARNING_RATE)+'_U_'+str(HIDDEN_UNITS)+'.txt'
     f = open(txt,'a')
     f.write('\n\nResult: Hidden layers {} H_units {} Lrate {} Epochs {} Batch Size {} Training Loss: {}\n\n'.format(HIDDEN_LAYERS,HIDDEN_UNITS,LEARNING_RATE,EPOCHS,BATCH_SIZE,mean_cross))
+    f.write('\nTrain : Loss {} Acc {} \n'.format(train_loss,train_acc))
+    f.write('\nValid : Loss {} Acc {} \n\n'.format(val_loss,val_acc))
     cross_entropy_loss =0
     for i in range(len(x_valid.values)):
             # print(x_valid.values[i])
             # print(y_valid.values[i])
             pred=predict(net,x_valid.values[i])
-            # print(pred)
+
             #output=np.argmax(pred)
             # super_threshold_indices = pred >= 0.5
             # pred[super_threshold_indices] = 1
             # super_threshold_indices2 = pred < 0.5
             # pred[super_threshold_indices2] = 0
+            # print(pred)
             target=one_hot_encode(y_valid.values[i])
             # print(target)
             # print(pred)
