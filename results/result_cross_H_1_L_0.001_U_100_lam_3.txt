@@ -1,0 +1,18 @@
+
+
+Result: Hidden layers 1 H_units 100 Lrate 0.001 LAMBDA 3 Epochs 500 Batch Size 100 Training Loss: 0.49107244771914094
+
+
+Train : Loss 0.45692622461874777 Acc 0.6845089285714285 
+
+Valid : Loss 0.4580937128347871 Acc 0.685625 
+
+
+
+Result: Hidden layers 1 H_units 100 Lrate 0.001 LAMBDA 3 Epochs 1000 Batch Size 100 Training Loss: 0.4900257084667074
+
+
+Train : Loss 0.4591625929531544 Acc 0.6849305555555556 
+
+Valid : Loss 0.4552491539956013 Acc 0.6878125 
+

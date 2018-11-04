@@ -2,7 +2,7 @@
 # @Date:   2018-10-22T18:34:28+05:30
 # @Email:  atulsahay01@gmail.com
 # @Last modified by:   atul
-# @Last modified time: 2018-10-30T23:18:45+05:30
+# @Last modified time: 2018-11-04T01:30:56+05:30
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,31 +11,24 @@ import sys
 import os
 import math
 
-HIDDEN_LAYERS = 3
-HIDDEN_UNITS = 200
+HIDDEN_LAYERS = 2
+HIDDEN_UNITS = 100
 OUTPUT_UNITS = 3
 BATCH_SIZE = 100
-LAMBDA = 0
-LEARNING_RATE = 0.01
+LAMBDA = 4
+LEARNING_RATE = 0.1
 EPOCHS = 1000
 ACTIVATION_FUNCTIONS = ["sigmoid","tanh","relu","softplus"]
 ACTIVATION = ACTIVATION_FUNCTIONS[0]
 EPSILON = 0.000000000001
 DROPOUT = 0
-
+DECAY = False
+PARTITION = 0.90
 n_weights_count = 0
-################ For One Hot encoding of the values ##########################
 
-def one_hot_encode(num,size=OUTPUT_UNITS):
-    arr = np.zeros(size)
-    np.put(arr, num-1, 1)
-    return arr
-
-def one_hot_decode(arr):
-    return np.where(arr==1)[0][0]+1
-############### End One Hot encoding ########################################
-
-
+###########################################################################################################
+#################### SETS METHODS FOR EXTRACTING FEATURES SET FROM THE DATA SET ##########################
+###########################################################################################################
 def to_map(data_set):
     data_set = pd.concat([data_set,pd.get_dummies(data_set['post_day'], prefix='post_day')],axis=1)
 
@@ -75,17 +68,25 @@ def get_features(file_path):
     return split(data)
 
 
+###########################################################################################################
+#################### END OF FEATURE EXTRACTION  ##########################
+#########################################################################################################
 
 
+################ For One Hot encoding of the values (OUTPUT) ##########################
+
+def one_hot_encode(num,size=OUTPUT_UNITS):
+    arr = np.zeros(size)
+    np.put(arr, num-1, 1)
+    return arr
+
+def one_hot_decode(arr):
+    return np.where(arr==1)[0][0]+1
+############### End One Hot encoding ########################################
 
 
-
-
-#Xor data
-XORdata=np.array([[0,0,0],[0,1,1],[1,0,2],[1,1,3]])
-X=XORdata[:,0:2]
-y=XORdata[:,-1]
-
+########## HELPING METHOD FOR PRINTING NETWORK CONFIGURATION AT ############
+#########  COMMAND PROMPT OR SOME FILE                         ############
 def print_network(net):
     for i,layer in enumerate(net,1):
         print("Layer {} ".format(i))
@@ -98,9 +99,13 @@ def print_file(f,net):
         for j,neuron in enumerate(layer,1):
             f.write("neuron {} : {}\n".format(j,neuron))
 
+################################ DONE ####################################
+
+
+# METHOD TO INITIALIZE THE NETWORK############################
 def initialize_network(X,n_o_neurons,hidden_units,n_h_layers):
     global n_weights_count
-    print(X.ix[0])
+    # print(X.ix[0])
     input_neurons=len(X.ix[0])
     hidden_neurons=hidden_units
     output_neurons=n_o_neurons
@@ -124,10 +129,8 @@ def initialize_network(X,n_o_neurons,hidden_units,n_h_layers):
 
     return net
 
-################### Initialization of network
-# net = initialize_network(X,8,len(X[0])+1)
-# print_network(net)
 
+############################### ACTIVATION FUNCTIONS IMPLEMENTATION ####################################
 
 def activate_sigmoid(sum):
     return (1/(1+np.exp(-sum)))
@@ -142,8 +145,29 @@ def activate_softplus(sum):
     return np.log(1+np.exp(sum))
 
 
+############################# DONE WITH ACTIVATION METHODS ##############################################
+
+############################# DERIVATIVES OF EACH ACTIVATION FUNCTION ###################################
+def sigmoidDerivative(output):
+    return output*(1.0-output)
+
+def tanhDerivative(output):
+    return (1-output**2)
+
+def reluDerivative(output):
+    der = output.copy()
+    der[der>0] = 1
+    der[der<0] = 0
+    return der
+
+def softplusDerivative(output):
+    return activate_sigmoid(output)
+########################### DONE WITH DERIVATIVES #######################################################
+
+############################ DROPUT METHOD IMPLEMENTATION TAKING DROPUT PARAM AS GLOBAL ################
 def dropout_activation(activation):
     # print(activation)
+    global DROPOUT
     size = len(activation)
     # print(size)
     indices = np.random.choice(np.arange(0,size),int(size*DROPOUT),replace=False)
@@ -152,7 +176,10 @@ def dropout_activation(activation):
     # print(activation)
     return activation
 
+######################### RETURNING NEW ACTIVATION LIST ################################################
 
+
+######################## FORWARD PROPAGATION IMPLEMENTATION ###########################################
 def forward_propagation(net,input):
     global ACTIVATION
     row=input
@@ -165,13 +192,6 @@ def forward_propagation(net,input):
             neuron.append(n['weights'])
         # print("here is the neuron")
         neuron = np.array(neuron)
-        # neuron = np.squeeze(neuron)
-        # print(neuron.shape)
-        # print(neuron.shape)
-
-        # print("\nAnd here is the transpose")
-        # neuronT = neuron.T
-        # print(neuronT.shape)
 
         sum = neuron.dot(row)
         # print(sum)
@@ -191,35 +211,11 @@ def forward_propagation(net,input):
         # print(layer)
 
         row = result
-        # for neuron in layer:
-        #     # print(neuron['weights'])
-        #     # print(row)
-        #     sum=neuron['weights'].T.dot(row)
-        #
-        #     result=activate_sigmoid(sum)
-        #     neuron['result']=result
-        #
-        #     prev_input=np.append(prev_input,[result])
-        # row =prev_input
-    # exit()
     return row
+###########################################################################
 
-def sigmoidDerivative(output):
-    return output*(1.0-output)
 
-def tanhDerivative(output):
-    return (1-output**2)
-
-def reluDerivative(output):
-    der = output.copy()
-    der[der>0] = 1
-    der[der<0] = 0
-    return der
-
-def softplusDerivative(output):
-    return activate_sigmoid(output)
-
-################# Need to perform square loss
+################# BACK PROPAGATION IMPLEMENTATION ##############################
 
 def back_propagation(net,row,expected):
     global ACTIVATION
@@ -238,12 +234,6 @@ def back_propagation(net,row,expected):
                 neuron['delta']=errors[j]
                 # print(neuron['delta'])
         else:
-            # for j in range(len(layer)):
-            #     herror=0
-            #     nextlayer=net[i+1]
-            #     for neuron in nextlayer:
-            #         herror+=(neuron['weights'][j]*neuron['delta'])
-            #     errors=np.append(errors,[herror])
             nextlayer = net[i+1]
             delta = np.array([])
             errors = []
@@ -272,13 +262,11 @@ def back_propagation(net,row,expected):
             # exit()
             for j in range(len(layer)):
                 neuron=layer[j]
-                # print("errors[j]",errors[j])
-                # print("result",neuron['result'])
-                #for mse### neuron['delta']=errors[j]*sigmoidDerivative(neuron['result'])
                 neuron['delta']=final_error[j]
                 # print(neuron['delta'])
 
 
+############################## WEIGHT UPDATATION ########################
 def updateWeights(net,input,lrate,lam):
     # print_network(net)
     global n_weights_count
@@ -311,6 +299,8 @@ def updateWeights(net,input,lrate,lam):
             c = np.ravel(weights[index])
             neuron['weights']=c
 
+
+##################### GET MINI BATCH STOCHASTIC APPROACH ###########################
 def get_mini_batch(batch_size,X,y):
     indices = list(np.random.randint(0,len(X),batch_size))
     x_mini = np.array([])
@@ -319,11 +309,14 @@ def get_mini_batch(batch_size,X,y):
     y_mini = y[indices]
     return x_mini,y_mini
 
+################### CROSS ENTROPY LOSS IMPLEMENTATION WITH EPSILON FOR LOG(0) CASE ###########
 def cross_entropy(expected,output):
     global EPSILON
     result = -(expected*np.log(output+EPSILON)+(1-expected)*np.log(1-output+EPSILON))
     return result
 
+
+################ L-2 NORM REGULARIZATION IMPLEMENTATION ##############################
 def regularization(net,lam):
     neuron_weights_mean = []
     for i in range(len(net)):
@@ -339,6 +332,8 @@ def regularization(net,lam):
 
     return reg
 
+
+############ DECAY LEARNING RATE IMPLEMMENTATION #########################################
 def decay_learn(loss,lrate,min_loss):
     if min_loss is None:
         return lrate, loss
@@ -347,6 +342,8 @@ def decay_learn(loss,lrate,min_loss):
         min_loss = loss
     return lrate,min_loss
 
+
+############## TRAINGING METHOD IMPLEMENTATION #########################################
 def training(X,net, epochs,lrate,y,batch_size,lam,x_valid,y_valid):
     errors=[]
 
@@ -378,16 +375,16 @@ def training(X,net, epochs,lrate,y,batch_size,lam,x_valid,y_valid):
                 print("output=",outputs)
                 print("Sum_error=",sum_error/BATCH_SIZE)
 
-
-        # loss = total_loss(net,x_valid,y_valid,lam)
-        # lrate,min_loss = decay_learn(loss,lrate,min_loss)
+        if(DECAY):
+            loss = total_loss(net,x_valid,y_valid,lam)
+            lrate,min_loss = decay_learn(loss,lrate,min_loss)
         # print("loss : {} LRate : {}".format(loss,lrate))
         sum_error/=BATCH_SIZE
         print('>epoch=%d,error=%f'%(epoch,sum_error))
         errors.append(sum_error)
     mean_cross = np.mean(errors)
         # sum_error_back = 0
-    return errors,mean_cross
+    return errors, mean_cross
 
 # Make a prediction with a network
 def predict(network, row):
@@ -449,6 +446,10 @@ def total_accuracy(net,x,y):
 
 
 def main():
+    # global HIDDEN_LAYERS, HIDDEN_UNITS, OUTPUT_UNITS, BATCH_SIZE, LAMBDA, LEARNING_RATE, ACTIVATION, ACTIVATION_FUNCTIONS, DROPOUT, DECAY, PARTITION
+
+    # print(HIDDEN_LAYERS, HIDDEN_UNITS, OUTPUT_UNITS, BATCH_SIZE, LAMBDA, LEARNING_RATE, ACTIVATION, ACTIVATION_FUNCTIONS, DROPOUT, DECAY, PARTITION)
+    # exit()
     """
     Calls functions required to do tasks in sequence
     say :
@@ -477,7 +478,7 @@ def main():
     x_train = to_normalize(x_train)
 
     # To take validation set out in proportion of 20-80 #############################
-    indexes = int(0.90*x_train.shape[0])
+    indexes = int(PARTITION*x_train.shape[0])
     x_train, x_valid = x_train.iloc[:indexes], x_train.iloc[indexes:]
     y_train, y_valid = y_train.iloc[:indexes], y_train.iloc[indexes:]
 
@@ -508,12 +509,12 @@ def main():
     print("#Weights :",n_weights_count)
     ############ Training of the network ###################3
     errors,mean_cross=training(x_train.values,net,EPOCHS, LEARNING_RATE,y_train.values,BATCH_SIZE,LAMBDA,x_valid.values,y_valid.values)
-    print_network(net)
-    epochs=[ i for i in range(len(errors)) ]
-    plt.plot(epochs,errors)
-    plt.xlabel("Epochs [Batches("+str(BATCH_SIZE)+"'s)] ")
-    plt.ylabel('error')
-    plt.show()
+    # print_network(net)
+    # epochs=[ i for i in range(len(errors)) ]
+    # plt.plot(epochs,errors)
+    # plt.xlabel("Epochs [Batches("+str(BATCH_SIZE)+"'s)] ")
+    # plt.ylabel('error')
+    # plt.show()
 
     print("Calculating: Loss and Accuracy")
     train_loss,train_acc = total_loss(net,x_train.values,y_train.values,LAMBDA),total_accuracy(net,x_train.values,y_train.values)
@@ -521,52 +522,52 @@ def main():
     print("Train : Loss {} Acc {} ".format(train_loss,train_acc))
     print("Valid : Loss {} Acc {} ".format(val_loss,val_acc))
 
-    ########### Prediction ###################################
-    txt = 'result_cross_H_'+str(HIDDEN_LAYERS)+'_L_'+str(LEARNING_RATE)+'_U_'+str(HIDDEN_UNITS)+'_lam_'+str(LAMBDA)+'_ACTIVATION_'+str(ACTIVATION)+'_Drop_'+str(DROPOUT)+'.txt'
-    f = open(txt,'a')
-    f.write('\n\nResult: Activation {} Hidden layers {} H_units {} Lrate {} LAMBDA {} Epochs {} Batch Size {} Drop out {} Training Loss: {}\n\n'.format(ACTIVATION,HIDDEN_LAYERS,HIDDEN_UNITS,LEARNING_RATE,LAMBDA,EPOCHS,BATCH_SIZE,DROPOUT,mean_cross))
-    f.write('\nTrain : Loss {} Acc {} \n'.format(train_loss,train_acc))
-    f.write('\nValid : Loss {} Acc {} \n\n'.format(val_loss,val_acc))
-    cross_entropy_loss =0
-    for i in range(len(x_valid.values)):
-            # print(x_valid.values[i])
-            # print(y_valid.values[i])
-            pred=predict(net,x_valid.values[i])
-
-            #output=np.argmax(pred)
-            # super_threshold_indices = pred >= 0.5
-            # pred[super_threshold_indices] = 1
-            # super_threshold_indices2 = pred < 0.5
-            # pred[super_threshold_indices2] = 0
-            # print(pred)
-            target=one_hot_encode(y_valid.values[i])
-            # print(target)
-            # print(pred)
-            cross_entropy_loss+=np.mean(cross_entropy(target,pred))
-            # print(cross_entropy_loss)
-            pred = one_hot_encode(np.argmax(pred)+1)
-            # output = np.packbits(pred)[0]
-            #output = one_hot_decode(pred)
-            output=pred
-
-            #square_loss+=(output-y_valid.values[i])**2
-            print(output)
-            print(target)
-
-            # cross_entropy_loss+=np.mean(cross_entropy(target,output))
-            print("expected : {} actual : {}".format(y_valid.values[i],one_hot_decode(output)))
-            f.write("expected : {} actual : {}\n".format(y_valid.values[i],one_hot_decode(output)))
-    print(cross_entropy_loss,len(x_valid.values))
-    cross_entropy_loss = cross_entropy_loss*1.0 / float(len(x_valid.values))
-    print("cross_entropy_loss {} ".format(cross_entropy_loss))
-    f.write("\n\ncross_entropy_loss {} \n\n".format(cross_entropy_loss))
-    f.close()
-    f = open('net_cross.txt','a')
-    f.write('\n\nNew Net\n\n')
-    print_file(f,net)
-    f.close()
-
-    # Output Generation is done
+    # ########### Prediction ###################################
+    # txt = 'result_cross_H_'+str(HIDDEN_LAYERS)+'_L_'+str(LEARNING_RATE)+'_U_'+str(HIDDEN_UNITS)+'_lam_'+str(LAMBDA)+'_ACTIVATION_'+str(ACTIVATION)+'_Drop_'+str(DROPOUT)+'.txt'
+    # f = open(txt,'a')
+    # f.write('\n\nResult: Activation {} Hidden layers {} H_units {} Lrate {} LAMBDA {} Epochs {} Batch Size {} Drop out {} Training Loss: {}\n\n'.format(ACTIVATION,HIDDEN_LAYERS,HIDDEN_UNITS,LEARNING_RATE,LAMBDA,EPOCHS,BATCH_SIZE,DROPOUT,mean_cross))
+    # f.write('\nTrain : Loss {} Acc {} \n'.format(train_loss,train_acc))
+    # f.write('\nValid : Loss {} Acc {} \n\n'.format(val_loss,val_acc))
+    # cross_entropy_loss =0
+    # for i in range(len(x_valid.values)):
+    #         # print(x_valid.values[i])
+    #         # print(y_valid.values[i])
+    #         pred=predict(net,x_valid.values[i])
+    #
+    #         #output=np.argmax(pred)
+    #         # super_threshold_indices = pred >= 0.5
+    #         # pred[super_threshold_indices] = 1
+    #         # super_threshold_indices2 = pred < 0.5
+    #         # pred[super_threshold_indices2] = 0
+    #         # print(pred)
+    #         target=one_hot_encode(y_valid.values[i])
+    #         # print(target)
+    #         # print(pred)
+    #         cross_entropy_loss+=np.mean(cross_entropy(target,pred))
+    #         # print(cross_entropy_loss)
+    #         pred = one_hot_encode(np.argmax(pred)+1)
+    #         # output = np.packbits(pred)[0]
+    #         #output = one_hot_decode(pred)
+    #         output=pred
+    #
+    #         #square_loss+=(output-y_valid.values[i])**2
+    #         print(output)
+    #         print(target)
+    #
+    #         # cross_entropy_loss+=np.mean(cross_entropy(target,output))
+    #         print("expected : {} actual : {}".format(y_valid.values[i],one_hot_decode(output)))
+    #         f.write("expected : {} actual : {}\n".format(y_valid.values[i],one_hot_decode(output)))
+    # # print(cross_entropy_loss,len(x_valid.values))
+    # cross_entropy_loss = cross_entropy_loss*1.0 / float(len(x_valid.values))
+    # # print("cross_entropy_loss {} ".format(cross_entropy_loss))
+    # # f.write("\n\ncross_entropy_loss {} \n\n".format(cross_entropy_loss))
+    # f.close()
+    # f = open('net_cross.txt','a')
+    # f.write('\n\nNew Net\n\n')
+    # print_file(f,net)
+    # f.close()
+    #
+    # # Output Generation is done
     generate_output(x_test.values,net)
     # print_network(net)
 
@@ -576,4 +577,29 @@ def main():
 
 #################### Driver Function
 if __name__ == '__main__':
+    # global HIDDEN_LAYERS, HIDDEN_UNITS, OUTPUT_UNITS, BATCH_SIZE, LAMBDA, LEARNING_RATE, ACTIVATION, ACTIVATION_FUNCTIONS, DROPOUT, DECAY, PARTITION
+    print("******************Neural Network Model***********************")
+    print("Enter model configuration")
+    HIDDEN_LAYERS = int(input("Hidden Layers : "))
+    HIDDEN_UNITS  = int(input("Hidden Units : "))
+    print("Activation Functions:  \n")
+    print("1.Sigmoid\n")
+    print("2.Tanh\n")
+    print("3.ReLu\n")
+    print("4.Softplus\n")
+    choice = int(input("Choice [1,2,3,4] : ")) - 1
+    ACTIVATION = ACTIVATION_FUNCTIONS[choice]
+    LEARNING_RATE = float(input("Enter learning rate : "))
+    print("Want to decay on learning rate : \n")
+    print("1. True\n")
+    print("2. False\n")
+    choice = int(input("Choice (1 or 2): "))
+    DECAY = True if choice == 1 else False
+    c = float(input("VALIDATION SET PARTITION (%): "))
+    PARTITION = c/100
+    BATCH_SIZE = int(input("Enter Batch size: "))
+    print("For regualrization \n")
+    LAMBDA = int(input("Enter Lambda (if not enter 0): "))
+    c =  float(input("Enter DROPOUT (%) : "))
+    DROPUT = c/100
     main()
